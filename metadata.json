@@ -1,0 +1,5 @@
+{
+  "name": "Toodo - Odoo Analytics",
+  "description": "A high-performance business intelligence dashboard for Odoo POS, featuring real-time data synchronization, multi-location analysis, and business management tools.",
+  "requestFramePermissions": []
+}

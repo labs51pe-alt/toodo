@@ -9,8 +9,9 @@ const xmlEscape = (str: string) =>
      .replace(/"/g, '&quot;')
      .replace(/'/g, '&apos;');
 
-// Serializer for XML-RPC parameters
+// Serializer for XML-RPC parameters - Strict Odoo Compliance
 const serialize = (value: any): string => {
+  if (value === null || value === undefined) return '<nil/>';
   if (typeof value === 'number') {
     return Number.isInteger(value) ? `<int>${value}</int>` : `<double>${value}</double>`;
   }
@@ -23,10 +24,11 @@ const serialize = (value: any): string => {
   if (Array.isArray(value)) {
     return `<array><data>${value.map(v => `<value>${serialize(v)}</value>`).join('')}</data></array>`;
   }
-  if (typeof value === 'object' && value !== null) {
+  if (typeof value === 'object') {
     if (value instanceof Date) {
-        return `<string>${value.toISOString().replace('T', ' ').substring(0, 19)}</string>`;
+        return `<dateTime.iso8601>${value.toISOString()}</dateTime.iso8601>`;
     }
+    // Handle empty or standard objects as structs
     return `<struct>${Object.entries(value).map(([k, v]) => 
       `<member><name>${k}</name><value>${serialize(v)}</value></member>`
     ).join('')}</struct>`;
@@ -44,7 +46,8 @@ const parseValue = (node: Element): any => {
     case 'int': 
     case 'i4': return parseInt(child.textContent || '0', 10);
     case 'double': return parseFloat(child.textContent || '0');
-    case 'boolean': return child.textContent === '1';
+    case 'boolean': return child.textContent === '1' || child.textContent === 'true';
+    case 'dateTime.iso8601': return new Date(child.textContent || '');
     case 'array': 
       const dataNode = child.querySelector('data');
       if (!dataNode) return [];
@@ -91,6 +94,7 @@ export class OdooService {
 </methodCall>`;
 
     const targetUrl = `${this.url}/xmlrpc/2/${endpoint}`;
+    // Using a more reliable proxy structure for XML-RPC
     const fetchUrl = this.useProxy 
       ? `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`
       : targetUrl;
@@ -105,7 +109,7 @@ export class OdooService {
         });
 
         if (!response.ok) {
-            throw new Error(`Error de Red: ${response.status}`);
+            throw new Error(`Servidor Odoo no disponible (${response.status})`);
         }
 
         const text = await response.text();
@@ -115,29 +119,31 @@ export class OdooService {
         const fault = doc.querySelector('fault');
         if (fault) {
             const faultStruct = parseValue(fault.querySelector('value')!);
-            throw new Error(`Odoo Fault: ${faultStruct.faultString}`);
+            throw new Error(`Odoo Error: ${faultStruct.faultString || 'Desconocido'}`);
         }
 
         const paramNode = doc.querySelector('params param value');
-        if (!paramNode) throw new Error('Respuesta XML inválida del servidor');
+        if (!paramNode) throw new Error('Odoo devolvió una respuesta vacía o inválida.');
         
         return parseValue(paramNode);
     } catch (error: any) {
-        console.error("RPC Sync Error:", error);
+        console.error("Odoo Sync Error:", error);
         throw error;
     }
   }
 
   async authenticate(): Promise<number> {
+    // Standard Odoo authentication requires: db, login, password (or api_key), user_agent_env
     const result = await this.rpcCall('common', 'authenticate', [
       this.db, 
       this.username, 
       this.apiKey, 
-      {}
+      {} // empty context
     ]);
 
-    if (result === false || !result || typeof result !== 'number') {
-      throw new Error(`Credenciales Inválidas para la base de datos "${this.db}".`);
+    // Odoo returns False if auth fails
+    if (result === false || result === null || typeof result !== 'number') {
+      throw new Error(`Credenciales Inválidas: Verifica Usuario/API Key en "${this.db}".`);
     }
 
     this.uid = result;
@@ -147,11 +153,16 @@ export class OdooService {
   async getPosOrders(limit = 100, startDate?: string, endDate?: string): Promise<ReporteCierre[]> {
     if (!this.uid) await this.authenticate();
     
+    // Domain filtering
     const domain: any[] = [['state', 'in', ['paid', 'done', 'invoiced']]];
     
     if (startDate) domain.push(['date_order', '>=', startDate]);
     if (endDate) domain.push(['date_order', '<=', endDate]);
-    if (this.companyId) domain.push(['company_id', '=', this.companyId]);
+    
+    // Crucial: Multi-company separation
+    if (this.companyId) {
+        domain.push(['company_id', '=', this.companyId]);
+    }
 
     const orders = await this.rpcCall('object', 'execute_kw', [
       this.db, 
@@ -184,7 +195,10 @@ export class OdooService {
     const domain: any[] = [['order_id.state', 'in', ['paid', 'done', 'invoiced']]];
     if (startDate) domain.push(['order_id.date_order', '>=', startDate]);
     if (endDate) domain.push(['order_id.date_order', '<=', endDate]);
-    if (this.companyId) domain.push(['company_id', '=', this.companyId]);
+    
+    if (this.companyId) {
+        domain.push(['company_id', '=', this.companyId]);
+    }
 
     const lines = await this.rpcCall('object', 'execute_kw', [
       this.db, 

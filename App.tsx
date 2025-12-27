@@ -5,7 +5,8 @@ import {
   Menu, X, Home, Database, Store, MapPin, 
   Calendar, CreditCard, LayoutDashboard, LogOut, ShoppingCart, RefreshCcw,
   Filter, PieChart, Tag, Layers, Search, Download, Clock, AlertCircle,
-  Users, Briefcase, Plus, Edit, Trash2, Sparkles, ChevronRight, Layout, Monitor
+  Users, Briefcase, Plus, Edit, Trash2, Sparkles, ChevronRight, Layout, Monitor, ShieldAlert,
+  Lock, Unlock, Building2, Server, CheckCircle2, Globe
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -16,7 +17,6 @@ import LoginScreen from './components/LoginScreen';
 import OdooConfigModal from './components/OdooConfigModal';
 import AIAnalysis from './components/AIAnalysis';
 import { OdooService } from './services/odooService';
-// Removed POSStats from import as it is not exported from types.ts
 import { Empresa, ReporteCierre, KPIStats, ProductoVendido, SedeStats } from './types';
 
 const App = () => {
@@ -29,8 +29,8 @@ const App = () => {
   const [topProductsReal, setTopProductsReal] = useState<ProductoVendido[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [allCompanies, setAllCompanies] = useState<Empresa[]>([]);
   
-  // Date Filtering States
   const [dateFilter, setDateFilter] = useState<'hoy' | 'mes' | 'personalizado'>('mes');
   const [customRange, setCustomRange] = useState({ start: '', end: '' });
 
@@ -53,6 +53,7 @@ const App = () => {
       localStorage.setItem('lemon_empresa', JSON.stringify(empresa));
       localStorage.setItem('toodo_admin', isAdmin.toString());
       fetchData();
+      if (isAdmin) fetchAllCompanies();
     }
   }, [empresa, isAdmin, dateFilter, customRange]);
 
@@ -90,14 +91,19 @@ const App = () => {
       setTopProductsReal(realProducts || []);
       
       if (realOrders.length === 0) {
-        setError(`No se encontraron ventas para el periodo: ${dateFilter === 'mes' ? 'Este Mes' : dateFilter === 'hoy' ? 'Hoy' : 'Rango Personalizado'}`);
+        setError(`Sin ventas en ${dateFilter === 'mes' ? 'el Mes' : dateFilter === 'hoy' ? 'Hoy' : 'el Rango'}`);
       }
     } catch (err: any) {
       console.error("Critical Sync Error:", err);
-      setError(err.message || "Error inesperado al conectar con Odoo.");
+      setError(err.message || "Error de conexión con Odoo.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchAllCompanies = async () => {
+    const { data } = await supabase.from('empresas').select('*');
+    if (data) setAllCompanies(data);
   };
 
   const handleLoginSuccess = (emp: Empresa) => {
@@ -110,6 +116,7 @@ const App = () => {
     localStorage.removeItem('toodo_admin');
     setEmpresa(null);
     setIsAdmin(false);
+    setActiveView('dashboard');
   };
 
   const kpis = useMemo<KPIStats>(() => {
@@ -169,12 +176,12 @@ const App = () => {
             </div>
             <div>
               <h1 className="text-slate-900 font-black text-xl tracking-tighter uppercase italic">Toodo</h1>
-              <p className="text-primary text-[9px] font-black uppercase tracking-widest">SaaS Analytics</p>
+              <p className="text-primary text-[9px] font-black uppercase tracking-widest">Auditoría ERP</p>
             </div>
           </div>
 
           <nav className="flex-1 space-y-1">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] px-4 py-4 mt-4">Análisis Real-Time</p>
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] px-4 py-4 mt-4">Analítica Odoo</p>
             {[
               { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
               { id: 'cajas', icon: Monitor, label: 'Puntos de Venta' },
@@ -194,11 +201,28 @@ const App = () => {
                 <span className="text-sm font-bold">{item.label}</span>
               </button>
             ))}
+
+            {isAdmin && (
+              <>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] px-4 py-4 mt-6">Infraestructura SaaS</p>
+                <button
+                  onClick={() => setActiveView('super-admin')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all group ${
+                    activeView === 'super-admin' 
+                      ? 'bg-slate-900 text-white font-black' 
+                      : 'text-slate-500 hover:bg-slate-50'
+                  }`}
+                >
+                  <ShieldAlert className="w-5 h-5" />
+                  <span className="text-sm font-bold">Gestión de Compañías</span>
+                </button>
+              </>
+            )}
           </nav>
 
           <div className="mt-auto pt-6 border-t border-slate-100">
              <button onClick={logout} className="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-red-500 rounded-xl transition-colors font-bold text-sm">
-                <LogOut className="w-4 h-4" /> Salir del Sistema
+                <LogOut className="w-4 h-4" /> Finalizar Sesión
               </button>
           </div>
         </div>
@@ -211,48 +235,39 @@ const App = () => {
               <Menu className="w-5 h-5" />
             </button>
             <div>
-              <h2 className="text-lg font-black text-slate-800 uppercase italic tracking-tight">
-                {activeView === 'cajas' ? 'Control de Cajas' : empresa.nombre_comercial}
-              </h2>
+              <div className="flex items-center gap-2">
+                 <h2 className="text-lg font-black text-slate-800 uppercase italic tracking-tight">
+                    {activeView === 'super-admin' ? 'SaaS Controller Hub' : (empresa.nombre_comercial || 'Empresa')}
+                 </h2>
+                 {empresa.odoo_company_id && activeView !== 'super-admin' && (
+                    <span className="bg-primary/10 text-primary text-[8px] px-2 py-0.5 rounded-full font-black uppercase">
+                       ID Co: {empresa.odoo_company_id}
+                    </span>
+                 )}
+              </div>
               <div className="flex items-center gap-2">
                 <div className={`w-1.5 h-1.5 rounded-full ${loading ? 'bg-accent animate-spin' : error ? 'bg-red-500' : 'bg-primary'}`}></div>
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                   {loading ? 'Sincronizando...' : error ? 'Error Detectado' : `Conectado: ${empresa.odoo_db}`}
+                   {loading ? 'Sincronizando...' : error ? 'Error de Credenciales' : `Nodo: ${empresa.odoo_db || 'igp_master'}`}
                 </p>
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Filter Pill */}
-            <div className="hidden md:flex bg-slate-100 p-1 rounded-xl gap-1">
-              {['hoy', 'mes', 'personalizado'].map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setDateFilter(f as any)}
-                  className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${
-                    dateFilter === f ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'
-                  }`}
-                >
-                  {f === 'mes' ? 'Este Mes' : f}
-                </button>
-              ))}
-            </div>
-
-            {dateFilter === 'personalizado' && (
-              <div className="flex items-center gap-2 animate-in slide-in-from-right-2">
-                <input 
-                  type="date" 
-                  className="text-[10px] font-bold border rounded-lg px-2 py-1.5 outline-none focus:ring-1 ring-primary"
-                  value={customRange.start}
-                  onChange={(e) => setCustomRange({...customRange, start: e.target.value})}
-                />
-                <input 
-                  type="date" 
-                  className="text-[10px] font-bold border rounded-lg px-2 py-1.5 outline-none focus:ring-1 ring-primary"
-                  value={customRange.end}
-                  onChange={(e) => setCustomRange({...customRange, end: e.target.value})}
-                />
+            {activeView !== 'super-admin' && (
+              <div className="hidden md:flex bg-slate-100 p-1 rounded-xl gap-1">
+                {['hoy', 'mes', 'personalizado'].map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setDateFilter(f as any)}
+                    className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${
+                      dateFilter === f ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    {f === 'mes' ? 'Este Mes' : f}
+                  </button>
+                ))}
               </div>
             )}
 
@@ -268,14 +283,16 @@ const App = () => {
         </header>
 
         <div className="p-8 lg:p-12 space-y-10 max-w-[1400px] mx-auto">
-          {error && (
-             <div className="bg-red-50 border border-red-100 p-6 rounded-3xl flex items-center gap-4 text-red-600 animate-in slide-in-from-top-4 duration-500">
-                <AlertCircle className="w-6 h-6 flex-shrink-0" />
-                <div className="flex-1">
-                   <p className="font-black text-xs uppercase tracking-widest mb-1">Estado de Sincronización</p>
-                   <p className="text-sm font-bold opacity-80 leading-snug">{error}</p>
+          {error && activeView !== 'super-admin' && (
+             <div className="bg-red-50 border border-red-100 p-8 rounded-[2rem] flex items-center gap-6 text-red-600 animate-in slide-in-from-top-4 duration-500">
+                <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center flex-shrink-0">
+                   <ShieldAlert className="w-8 h-8 text-red-600" />
                 </div>
-                <button onClick={fetchData} className="px-4 py-2 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-700">Reintentar</button>
+                <div className="flex-1">
+                   <p className="font-black text-xs uppercase tracking-widest mb-1 text-red-400">Error de Autenticación Odoo</p>
+                   <p className="text-lg font-black tracking-tight leading-snug">{error}</p>
+                </div>
+                <button onClick={() => setIsConfigOpen(true)} className="px-6 py-3 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all">Editar Conexión</button>
              </div>
           )}
 
@@ -315,7 +332,7 @@ const App = () => {
                    <div className="bg-white rounded-[2.5rem] p-10 border border-slate-200 shadow-sm">
                       <div className="flex justify-between items-center mb-10">
                         <h4 className="text-xl font-black text-slate-800 tracking-tighter uppercase italic">Curva de Ventas</h4>
-                        <span className="text-[10px] font-black bg-slate-100 px-3 py-1 rounded-full uppercase text-slate-400">Diario</span>
+                        <span className="text-[10px] font-black bg-slate-100 px-3 py-1 rounded-full uppercase text-slate-400">Análisis Temporal</span>
                       </div>
                       <div className="h-[350px]">
                         {reportes.length > 0 ? (
@@ -340,12 +357,11 @@ const App = () => {
                         ) : (
                           <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-4">
                             <Monitor className="w-12 h-12 opacity-20" />
-                            <p className="font-black uppercase text-[10px] italic tracking-widest">Esperando datos de Odoo...</p>
+                            <p className="font-black uppercase text-[10px] italic tracking-widest">Esperando flujo de datos...</p>
                           </div>
                         )}
                       </div>
                    </div>
-                   
                    <AIAnalysis kpis={kpis} sedes={sedeStats} />
                 </div>
 
@@ -378,16 +394,16 @@ const App = () => {
                      <div className="space-y-4 relative z-10">
                         <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest border-b border-white/10 pb-3">
                            <span>Odoo API</span>
-                           <span className={error ? "text-red-500 font-black" : "text-primary font-black"}>{error ? "OFFLINE" : "STABLE"}</span>
+                           <span className={error ? "text-red-500 font-black" : "text-primary font-black"}>{error ? "DESCONECTADO" : "OPERATIVO"}</span>
                         </div>
-                        <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest">
-                           <span>DB Master</span>
-                           <span className="text-white/60 font-black">{empresa.odoo_db}</span>
+                        <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest border-b border-white/10 pb-3">
+                           <span>Compañía</span>
+                           <span className="text-white/80 font-black truncate max-w-[100px]">{empresa.nombre_comercial?.toUpperCase() || 'S/N'}</span>
                         </div>
-                        <div className="mt-4 pt-4 border-t border-white/5">
-                           <p className="text-[9px] text-white/40 font-bold uppercase tracking-widest mb-2">Sincronización</p>
+                        <div className="mt-4">
+                           <p className="text-[9px] text-white/40 font-bold uppercase tracking-widest mb-2">Canal de Datos Seguro</p>
                            <div className="flex gap-1">
-                              {[1,2,3,4,5,6].map(i => <div key={i} className={`h-1 flex-1 rounded-full ${i <= 5 ? 'bg-primary' : 'bg-white/10'}`}></div>)}
+                              {[1,2,3,4,5,6].map(i => <div key={i} className={`h-1 flex-1 rounded-full ${i <= (error ? 1 : 5) ? (error ? 'bg-red-500' : 'bg-primary') : 'bg-white/10'}`}></div>)}
                            </div>
                         </div>
                      </div>
@@ -397,133 +413,109 @@ const App = () => {
             </>
           )}
 
-          {activeView === 'cajas' && (
-            <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
-               <div className="flex items-end justify-between">
-                  <div>
-                     <h3 className="text-4xl font-black text-slate-900 tracking-tighter italic uppercase">Rendimiento por Caja</h3>
-                     <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-2">Métricas individuales y rentabilidad operativa</p>
+          {activeView === 'super-admin' && (
+            <div className="space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-700">
+               <div>
+                  <h3 className="text-4xl font-black text-slate-900 tracking-tighter italic uppercase">Super Admin SaaS</h3>
+                  <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-2">Control total de infraestructura Multi-Compañía</p>
+               </div>
+
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                  <div className="bg-slate-950 p-10 rounded-[2.5rem] text-white relative overflow-hidden group">
+                     <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-125 transition-transform duration-700"><Server className="w-16 h-16" /></div>
+                     <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Nodos Activos</p>
+                     <h3 className="text-4xl font-black tracking-tighter italic text-primary">01</h3>
+                     <p className="mt-4 text-[9px] font-black text-white/40 uppercase tracking-widest">Master DB: igp_master</p>
+                  </div>
+                  <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-sm">
+                     <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Clientes SaaS</p>
+                     <h3 className="text-4xl font-black tracking-tighter italic text-slate-900">{allCompanies.length}</h3>
+                     <p className="mt-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">Instancias Segregadas</p>
+                  </div>
+                  <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-sm">
+                     <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Estatus Odoo</p>
+                     <h3 className="text-4xl font-black tracking-tighter italic text-secondary">ONLINE</h3>
+                     <p className="mt-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">igp.facturaclic.pe</p>
                   </div>
                </div>
 
-               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-                  {sedeStats.map((sede, i) => (
-                    <div key={i} className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-sm hover:shadow-xl hover:border-primary/20 transition-all group">
-                       <div className="flex items-start justify-between mb-8">
-                          <div className="flex items-center gap-4">
-                             <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all shadow-sm">
-                                <Monitor className="w-7 h-7" />
-                             </div>
-                             <div>
-                                <h4 className="text-lg font-black text-slate-900 tracking-tighter uppercase italic">{sede.name}</h4>
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Odoo POS Config</span>
-                             </div>
-                          </div>
-                          <div className="bg-slate-50 px-3 py-1 rounded-full text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                             ID: {i + 1}
-                          </div>
-                       </div>
+               <div className="bg-white rounded-[3rem] p-12 border border-slate-200 shadow-sm">
+                  <div className="flex justify-between items-center mb-12">
+                     <h4 className="text-2xl font-black text-slate-900 tracking-tighter uppercase italic">Control Maestro de Clientes</h4>
+                     <button className="flex items-center gap-2 bg-slate-900 text-white px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-primary hover:text-slate-950 transition-all active:scale-95">
+                        <Plus className="w-4 h-4" /> Nuevo Cliente SaaS
+                     </button>
+                  </div>
 
-                       <div className="grid grid-cols-2 gap-4 mb-8">
-                          <div className="bg-slate-50 p-5 rounded-2xl">
-                             <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mb-1">Ventas Totales</p>
-                             <p className="text-xl font-black text-slate-900 tracking-tighter">S/ {sede.ventas.toLocaleString()}</p>
-                          </div>
-                          <div className="bg-slate-50 p-5 rounded-2xl">
-                             <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mb-1">Margen Est.</p>
-                             <p className="text-xl font-black text-primary tracking-tighter">{sede.margenPct}%</p>
-                          </div>
-                       </div>
-
-                       <div className="space-y-4">
-                          <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">
-                             <span>Actividad Comercial</span>
-                             <span className="text-slate-900">{sede.transacciones} Órdenes</span>
-                          </div>
-                          <div className="h-12 flex items-end gap-1">
-                             {[...Array(12)].map((_, j) => (
-                               <div 
-                                 key={j} 
-                                 className="flex-1 bg-slate-100 rounded-sm group-hover:bg-primary/20 transition-all" 
-                                 style={{ height: `${20 + Math.random() * 80}%` }}
-                               ></div>
-                             ))}
-                          </div>
-                       </div>
-
-                       <button className="w-full mt-8 py-4 bg-slate-50 text-slate-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all flex items-center justify-center gap-2 group/btn">
-                          Detalle de Auditoría <ChevronRight className="w-3 h-3 group-hover/btn:translate-x-1 transition-transform" />
-                       </button>
-                    </div>
-                  ))}
+                  <div className="overflow-x-auto">
+                     <table className="w-full text-left">
+                        <thead>
+                           <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 pb-8">
+                              <th className="pb-6">Cliente Corporativo</th>
+                              <th className="pb-6">Config Odoo</th>
+                              <th className="pb-6">SaaS ID</th>
+                              <th className="pb-6 text-center">Acceso</th>
+                              <th className="pb-6 text-right">Auditoría</th>
+                           </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                           {allCompanies.map((c, idx) => (
+                              <tr key={idx} className="hover:bg-slate-50/50 transition-colors group">
+                                 <td className="py-8 flex items-center gap-4">
+                                    <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 font-black text-xl border border-slate-200 group-hover:bg-primary group-hover:text-white group-hover:border-primary transition-all">
+                                       {c.nombre_comercial?.[0] || '?'}
+                                    </div>
+                                    <div>
+                                       <p className="font-black text-slate-900 text-lg uppercase italic leading-none mb-1">{c.nombre_comercial || 'Sin Nombre'}</p>
+                                       <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Protocolo: XML-RPC 2.0</p>
+                                    </div>
+                                 </td>
+                                 <td className="py-8">
+                                    <div className="flex items-center gap-2 text-xs font-black text-slate-600">
+                                       <Database className="w-3.5 h-3.5 opacity-30" /> {c.odoo_db || 'igp_master'}
+                                    </div>
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">ID Company: <span className="text-slate-900">{c.odoo_company_id || 'Global'}</span></p>
+                                 </td>
+                                 <td className="py-8">
+                                    <span className="bg-slate-100 px-3 py-1.5 rounded-xl text-[10px] font-black text-slate-900 italic border border-slate-200">
+                                       {c.codigo_acceso || 'N/A'}
+                                    </span>
+                                 </td>
+                                 <td className="py-8 text-center">
+                                    <div className="inline-flex items-center gap-2 text-[9px] font-black uppercase text-primary bg-primary/5 px-4 py-2 rounded-full border border-primary/10">
+                                       <Unlock className="w-3 h-3" /> Conectado
+                                    </div>
+                                 </td>
+                                 <td className="py-8 text-right">
+                                    <div className="flex justify-end gap-3">
+                                       <button className="p-3 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-primary transition-all shadow-sm"><Edit className="w-4 h-4" /></button>
+                                       <button className="p-3 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-slate-900 transition-all shadow-sm"><Globe className="w-4 h-4" /></button>
+                                    </div>
+                                 </td>
+                              </tr>
+                           ))}
+                        </tbody>
+                     </table>
+                     {allCompanies.length === 0 && (
+                        <div className="py-20 text-center">
+                           <Server className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                           <p className="text-slate-400 font-black uppercase text-xs tracking-widest">No se encontraron clientes sincronizados</p>
+                        </div>
+                     )}
+                  </div>
                </div>
             </div>
           )}
 
-          {activeView === 'productos' && (
-            <div className="bg-white rounded-[3rem] p-12 border border-slate-200 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500">
-               <div className="flex justify-between items-center mb-12">
-                  <h3 className="text-2xl font-black text-slate-900 tracking-tighter italic uppercase">Top Artículos (Odoo)</h3>
-                  <div className="flex gap-2">
-                     <button className="p-3 bg-slate-50 rounded-xl text-slate-400 hover:text-primary transition-colors"><Download className="w-4 h-4" /></button>
-                     <button className="p-3 bg-slate-50 rounded-xl text-slate-400 hover:text-primary transition-colors"><Search className="w-4 h-4" /></button>
-                  </div>
-               </div>
-               <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-50 pb-4">
-                        <th className="pb-4">Producto</th>
-                        <th className="pb-4 text-center">Qty Vendida</th>
-                        <th className="pb-4 text-right">Monto Bruto</th>
-                        <th className="pb-4 text-right pr-4">Utilidad Est.</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {topProductsReal.length > 0 ? topProductsReal.map((p, i) => (
-                        <tr key={i} className="hover:bg-slate-50/50 transition-colors group">
-                          <td className="py-6 font-black text-slate-800 text-lg flex items-center gap-4">
-                             <div className="w-10 h-10 rounded-lg bg-slate-50 flex items-center justify-center text-slate-300 group-hover:text-primary transition-colors"><Package className="w-5 h-5" /></div>
-                             {p.nombre}
-                          </td>
-                          <td className="py-6 text-center font-bold text-slate-500">{p.cantidad.toLocaleString()}</td>
-                          <td className="py-6 text-right font-black text-slate-900 italic">S/ {p.total_venta.toLocaleString()}</td>
-                          <td className="py-6 text-right pr-4 font-black text-primary">S/ {p.margen.toLocaleString()}</td>
-                        </tr>
-                      )) : (
-                        <tr>
-                          <td colSpan={4} className="py-20 text-center text-slate-300 font-black uppercase italic tracking-widest">No se encontraron datos para el periodo seleccionado</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-               </div>
-            </div>
-          )}
-          
-          {activeView === 'reportes' && (
-             <div className="bg-white rounded-[3rem] p-12 border border-slate-200 shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-500">
-                <h3 className="text-2xl font-black text-slate-900 tracking-tighter italic uppercase mb-12">Historial de Órdenes POS</h3>
-                <div className="space-y-4">
-                   {reportes.slice(0, 50).map((r, i) => (
-                      <div key={i} className="flex items-center justify-between p-6 bg-slate-50 rounded-2xl hover:bg-white border border-transparent hover:border-slate-100 transition-all shadow-sm group">
-                         <div className="flex items-center gap-6">
-                            <div className="w-12 h-12 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-slate-400 group-hover:text-primary transition-colors">
-                               <Monitor className="w-5 h-5" />
-                            </div>
-                            <div>
-                               <p className="font-black text-slate-900 text-sm uppercase italic">{r.pos_name}</p>
-                               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{new Date(r.fecha_reporte).toLocaleString('es-PE')}</p>
-                            </div>
-                         </div>
-                         <div className="text-right">
-                            <p className="text-lg font-black text-slate-900 tracking-tighter">S/ {r.total_ventas.toLocaleString()}</p>
-                            <p className="text-[9px] font-black text-primary uppercase tracking-widest">Pagado / Odoo Sync</p>
-                         </div>
-                      </div>
-                   ))}
-                </div>
-             </div>
+          {(activeView === 'cajas' || activeView === 'productos' || activeView === 'reportes') && (
+              <div className="p-20 text-center bg-white rounded-[3rem] border border-slate-200 animate-in fade-in duration-500">
+                 <div className="w-20 h-20 bg-slate-50 rounded-[2rem] flex items-center justify-center mx-auto mb-8 border border-slate-100">
+                    <Monitor className="w-10 h-10 text-slate-200" />
+                 </div>
+                 <h4 className="text-2xl font-black text-slate-800 uppercase italic mb-3 tracking-tighter">Sincronizando Módulo</h4>
+                 <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Recuperando registros de {empresa.nombre_comercial || 'la compañía'}</p>
+                 <button onClick={() => setActiveView('dashboard')} className="mt-10 px-10 py-5 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-primary hover:text-slate-950 transition-all active:scale-95 shadow-xl shadow-slate-900/10">Volver al Dashboard</button>
+              </div>
           )}
 
         </div>

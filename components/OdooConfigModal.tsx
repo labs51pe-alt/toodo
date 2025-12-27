@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { X, Globe, Database, User, Key, ShieldCheck, Loader2, AlertTriangle } from 'lucide-react';
+import { X, Globe, Database, User, Key, ShieldCheck, Loader2, AlertTriangle, Building2 } from 'lucide-react';
 import { Empresa } from '../types';
 import { supabase } from '../lib/supabase';
 
@@ -24,26 +24,32 @@ const OdooConfigModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
   const handleUpdate = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('empresas')
-        .update({
-          odoo_url: config.odoo_url,
-          odoo_db: config.odoo_db,
-          odoo_username: config.odoo_username,
-          odoo_api_key: config.odoo_api_key,
-          use_proxy: config.use_proxy
-        })
-        .eq('id', config.id)
-        .select()
-        .single();
+      // Intentar actualizar en Supabase si es un registro real
+      if (config.id && !config.id.includes('multifarma')) {
+        const { data, error } = await supabase
+          .from('empresas')
+          .update({
+            odoo_url: config.odoo_url,
+            odoo_db: config.odoo_db,
+            odoo_username: config.odoo_username,
+            odoo_api_key: config.odoo_api_key,
+            odoo_company_id: config.odoo_company_id ? Number(config.odoo_company_id) : null,
+            use_proxy: config.use_proxy
+          })
+          .eq('id', config.id)
+          .select()
+          .single();
 
-      if (!error) {
-        onSave(data);
-        onClose();
-      } else {
-        onSave(config);
-        onClose();
+        if (!error) {
+          onSave(data);
+          onClose();
+          return;
+        }
       }
+      
+      // Si falla o es local, guardar localmente
+      onSave(config);
+      onClose();
     } catch (err) {
       console.error(err);
       onSave(config);
@@ -71,7 +77,7 @@ const OdooConfigModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
           </button>
         </div>
         
-        <div className="p-10 space-y-8">
+        <div className="p-10 space-y-6">
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
               <Globe className="w-3 h-3 text-secondary" /> URL del Servidor
@@ -81,11 +87,11 @@ const OdooConfigModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
               value={config.odoo_url || ''}
               onChange={(e) => setConfig({...config, odoo_url: e.target.value})}
               placeholder="https://tu-odoo.com"
-              className="w-full px-6 py-5 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-primary outline-none font-bold text-slate-700"
+              className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-primary outline-none font-bold text-slate-700"
             />
           </div>
           
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                 <Database className="w-3 h-3 text-secondary" /> Base de Datos
@@ -94,20 +100,33 @@ const OdooConfigModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
                 type="text"
                 value={config.odoo_db || ''}
                 onChange={(e) => setConfig({...config, odoo_db: e.target.value})}
-                className="w-full px-6 py-5 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-primary outline-none font-bold"
+                className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-primary outline-none font-bold"
               />
             </div>
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                <User className="w-3 h-3 text-secondary" /> Usuario
+                <Building2 className="w-3 h-3 text-secondary" /> ID Compañía
               </label>
               <input
-                type="text"
-                value={config.odoo_username || ''}
-                onChange={(e) => setConfig({...config, odoo_username: e.target.value})}
-                className="w-full px-6 py-5 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-primary outline-none font-bold"
+                type="number"
+                placeholder="Opcional"
+                value={config.odoo_company_id || ''}
+                onChange={(e) => setConfig({...config, odoo_company_id: e.target.value ? Number(e.target.value) : undefined})}
+                className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-primary outline-none font-bold"
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+              <User className="w-3 h-3 text-secondary" /> Usuario
+            </label>
+            <input
+              type="text"
+              value={config.odoo_username || ''}
+              onChange={(e) => setConfig({...config, odoo_username: e.target.value})}
+              className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-primary outline-none font-bold"
+            />
           </div>
           
           <div className="space-y-2">
@@ -118,37 +137,30 @@ const OdooConfigModal: React.FC<Props> = ({ isOpen, onClose, onSave }) => {
               type="password"
               value={config.odoo_api_key || ''}
               onChange={(e) => setConfig({...config, odoo_api_key: e.target.value})}
-              className="w-full px-6 py-5 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-primary outline-none font-bold"
+              className="w-full px-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-primary outline-none font-bold"
             />
           </div>
 
-          <div className="flex items-center gap-4 p-5 bg-primary/5 rounded-[1.5rem] border border-primary/10">
+          <div className="flex items-center gap-4 p-4 bg-primary/5 rounded-[1.5rem] border border-primary/10">
             <input
               type="checkbox"
               id="use_proxy"
               checked={!!config.use_proxy}
               onChange={(e) => setConfig({...config, use_proxy: e.target.checked})}
-              className="w-6 h-6 accent-primary rounded-lg cursor-pointer"
+              className="w-5 h-5 accent-primary rounded-lg cursor-pointer"
             />
-            <label htmlFor="use_proxy" className="text-xs font-black text-slate-700 cursor-pointer uppercase tracking-tight">
-              Activar Túnel Proxy (Evitar Bloqueos CORS)
+            <label htmlFor="use_proxy" className="text-[10px] font-black text-slate-700 cursor-pointer uppercase tracking-tight">
+              Activar Túnel Proxy (CORS Bypass)
             </label>
           </div>
           
           <button
             onClick={handleUpdate}
             disabled={loading}
-            className="w-full bg-slate-950 text-white py-6 rounded-[1.5rem] font-black uppercase tracking-widest shadow-2xl shadow-primary/20 hover:bg-primary hover:text-slate-950 transition-all flex justify-center items-center group active:scale-95"
+            className="w-full bg-slate-950 text-white py-5 rounded-[1.5rem] font-black uppercase tracking-widest shadow-2xl shadow-primary/20 hover:bg-primary hover:text-slate-950 transition-all flex justify-center items-center group active:scale-95"
           >
-            {loading ? <Loader2 className="animate-spin w-7 h-7" /> : <span className="italic">Guardar Configuración</span>}
+            {loading ? <Loader2 className="animate-spin w-6 h-6" /> : <span className="italic">Aplicar Cambios</span>}
           </button>
-          
-          <div className="flex items-center gap-3 justify-center text-accent">
-             <AlertTriangle className="w-4 h-4" />
-             <p className="text-[10px] font-black uppercase tracking-widest">
-               Seguridad reforzada por Toodo Core
-             </p>
-          </div>
         </div>
       </div>
     </div>

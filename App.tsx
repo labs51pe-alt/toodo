@@ -16,7 +16,8 @@ import LoginScreen from './components/LoginScreen';
 import OdooConfigModal from './components/OdooConfigModal';
 import AIAnalysis from './components/AIAnalysis';
 import { OdooService } from './services/odooService';
-import { Empresa, ReporteCierre, KPIStats, ProductoVendido, POSStats, SedeStats } from './types';
+// Removed POSStats from import as it is not exported from types.ts
+import { Empresa, ReporteCierre, KPIStats, ProductoVendido, SedeStats } from './types';
 
 const App = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -437,7 +438,7 @@ const App = () => {
                        <div className="space-y-4">
                           <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">
                              <span>Actividad Comercial</span>
-                             <span className="text-slate-900">{(sede as any).transacciones} Órdenes</span>
+                             <span className="text-slate-900">{sede.transacciones} Órdenes</span>
                           </div>
                           <div className="h-12 flex items-end gap-1">
                              {[...Array(12)].map((_, j) => (

@@ -7,6 +7,7 @@ export interface Empresa {
   odoo_db: string;
   odoo_username: string;
   odoo_api_key: string;
+  odoo_company_id?: number; // ID de la compañía específica en Odoo
   color_primario: string;
   logo_url: string;
   use_proxy?: boolean;
@@ -34,17 +35,6 @@ export interface ProductoVendido {
   categoria?: string;
 }
 
-export interface PedidoOnline {
-  id: number;
-  cliente_nombre: string;
-  cliente_telefono: string;
-  monto_total: number;
-  metodo_pago: string;
-  estado: string;
-  created_at: string;
-  sede_recojo?: string;
-}
-
 export interface KPIStats {
   totalVentas: number;
   totalMargen: number;
@@ -54,15 +44,9 @@ export interface KPIStats {
   crecimiento?: number;
 }
 
-export interface POSStats {
-  name: string;
-  value: number;
-  tickets: number;
-  ticketPromedio: number;
-}
-
 export interface SedeStats {
   name: string;
   ventas: number;
   margenPct: number;
+  transacciones: number;
 }

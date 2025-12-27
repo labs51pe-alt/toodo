@@ -69,6 +69,7 @@ export class OdooService {
   private username: string;
   private apiKey: string;
   private useProxy: boolean;
+  private companyId?: number;
   private uid: number | null = null;
 
   constructor(empresa: Empresa) {
@@ -77,6 +78,7 @@ export class OdooService {
     this.username = empresa.odoo_username;
     this.apiKey = empresa.odoo_api_key;
     this.useProxy = !!empresa.use_proxy;
+    this.companyId = empresa.odoo_company_id;
   }
 
   private async rpcCall(endpoint: string, method: string, params: any[]) {
@@ -149,6 +151,7 @@ export class OdooService {
     
     if (startDate) domain.push(['date_order', '>=', startDate]);
     if (endDate) domain.push(['date_order', '<=', endDate]);
+    if (this.companyId) domain.push(['company_id', '=', this.companyId]);
 
     const orders = await this.rpcCall('object', 'execute_kw', [
       this.db, 
@@ -158,7 +161,7 @@ export class OdooService {
       'search_read', 
       [domain], 
       { 
-        fields: ['id', 'name', 'date_order', 'amount_total', 'config_id'],
+        fields: ['id', 'name', 'date_order', 'amount_total', 'config_id', 'company_id'],
         limit: limit,
         order: 'date_order desc'
       }
@@ -181,6 +184,7 @@ export class OdooService {
     const domain: any[] = [['order_id.state', 'in', ['paid', 'done', 'invoiced']]];
     if (startDate) domain.push(['order_id.date_order', '>=', startDate]);
     if (endDate) domain.push(['order_id.date_order', '<=', endDate]);
+    if (this.companyId) domain.push(['company_id', '=', this.companyId]);
 
     const lines = await this.rpcCall('object', 'execute_kw', [
       this.db, 

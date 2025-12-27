@@ -2,10 +2,10 @@
 import { GoogleGenAI } from "@google/genai";
 import { KPIStats, SedeStats } from "../types";
 
-// Always use process.env.API_KEY for the client instance.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 export const analyzeBusinessData = async (kpis: KPIStats, sedes: SedeStats[]) => {
+  // Always initialize GoogleGenAI right before the call to use the latest API key.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
   const prompt = `
     Analyze the following business performance data for a retail/pharmacy chain:
     
@@ -26,14 +26,15 @@ export const analyzeBusinessData = async (kpis: KPIStats, sedes: SedeStats[]) =>
   `;
 
   try {
+    // Using gemini-3-pro-preview for complex business analysis reasoning.
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3-pro-preview",
       contents: prompt,
       config: {
         systemInstruction: "You are an expert business analyst and Toodo platform specialist. Provide clear, professional, and actionable insights based on the data provided. Use Markdown formatting. Your tone is efficient, data-driven, and innovative.",
       }
     });
-    // Property access for text output is correct.
+    // Property access for text output is correct (no .text() call).
     return response.text;
   } catch (error) {
     console.error("Gemini Analysis Error:", error);
